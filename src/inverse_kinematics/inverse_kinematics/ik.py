@@ -24,7 +24,7 @@ class InverseKinematicsNode(Node):
         msg.linear.x = 0.0
         msg.linear.y = 0.0
         msg.linear.z = 100.0
-        msg.angular.x = 0.0
+        msg.angular.x = float(self.counter)
         msg.angular.y = 0.0
         msg.angular.z = 100.0
         self.publisher_.publish(msg)

@@ -10,10 +10,13 @@
 #include <geometry_msgs/msg/twist.h>
 
 
-
+// create publisher and subscriber objects
 rcl_publisher_t publisher;
-std_msgs__msg__Int32 msg;
-geometry_msgs__msg__Twist twist_msg;
+rcl_subscription_t subscriber;
+
+
+geometry_msgs__msg__Twist cmdMsg;
+geometry_msgs__msg__Twist stateMsg;
 
 rclc_executor_t executor;
 rclc_support_t support;
@@ -34,19 +37,30 @@ void error_loop(){
   }
 }
 
-void timer_callback(rcl_timer_t * timer, int64_t last_call_time)
-{  
-  RCLC_UNUSED(last_call_time);
-  if (timer != NULL) {
-    RCSOFTCHECK(rcl_publish(&publisher, &twist_msg, NULL));
-    twist_msg.linear.x += 10;
-    twist_msg.linear.y -= 10;
-    twist_msg.linear.z = 15;
-    twist_msg.angular.x = 0;
-    twist_msg.angular.y = 0;
-    twist_msg.angular.z +=1;
-  }
+void subscriber_callback(const void * msgin){
+  const geometry_msgs__msg__Twist * cmdMsg = (const geometry_msgs__msg__Twist *)msgin;
+    stateMsg.linear.x = cmdMsg->linear.x;
+    stateMsg.linear.y = cmdMsg->linear.y;
+    stateMsg.linear.z = cmdMsg->linear.z;
+    stateMsg.angular.x = cmdMsg->angular.x;
+    stateMsg.angular.y = cmdMsg->angular.y;
+    stateMsg.angular.z = cmdMsg->angular.z;
+    RCSOFTCHECK(rcl_publish(&publisher, &stateMsg, NULL));
 }
+
+// void timer_callback(rcl_timer_t * timer, int64_t last_call_time)
+// {  
+//   RCLC_UNUSED(last_call_time);
+//   if (timer != NULL) {
+//     RCSOFTCHECK(rcl_publish(&publisher, &stateMsg, NULL));
+//     stateMsg.linear.x += 10;
+//     stateMsg.linear.y -= 10;
+//     stateMsg.linear.z = 15;
+//     stateMsg.angular.x = 0;
+//     stateMsg.angular.y = 0;
+//     stateMsg.angular.z +=1;
+//   }
+// }
 
 void setup() {
   set_microros_transports();
@@ -71,24 +85,35 @@ void setup() {
     ROSIDL_GET_MSG_TYPE_SUPPORT(geometry_msgs, msg, Twist), // this macro is a bit weird
     "robot_state"));
 
-  // create timer,
-  const unsigned int timer_timeout = 1000;
-  RCCHECK(rclc_timer_init_default(
-    &timer,
-    &support,
-    RCL_MS_TO_NS(timer_timeout),
-    timer_callback));
+   // create subscriber
+  RCCHECK(rclc_subscription_init_default(
+    &subscriber,
+    &node,
+    ROSIDL_GET_MSG_TYPE_SUPPORT(geometry_msgs, msg, Twist),
+    "robot_cmd_vel"));
+
+
+  // // create timer,
+  // const unsigned int timer_timeout = 1000;
+  // RCCHECK(rclc_timer_init_default(
+  //   &timer,
+  //   &support,
+  //   RCL_MS_TO_NS(timer_timeout),
+  //   timer_callback));
 
   // create executor
   RCCHECK(rclc_executor_init(&executor, &support.context, 1, &allocator));
-  RCCHECK(rclc_executor_add_timer(&executor, &timer));
+  RCCHECK(rclc_executor_add_subscription(&executor, &subscriber, &cmdMsg, &subscriber_callback, ON_NEW_DATA));  
+  // RCCHECK(rclc_executor_add_timer(&executor, &timer));
 
-  twist_msg.linear.x = 0;
-  twist_msg.linear.y = 0;
-  twist_msg.linear.z = 0;
-  twist_msg.angular.x = 0;
-  twist_msg.angular.y = 0;
-  twist_msg.angular.z = 0;
+
+  // initialize values for published message
+  stateMsg.linear.x = 0;
+  stateMsg.linear.y = 0;
+  stateMsg.linear.z = 0;
+  stateMsg.angular.x = 0;
+  stateMsg.angular.y = 0;
+  stateMsg.angular.z = 0;
 }
 
 void loop() {
